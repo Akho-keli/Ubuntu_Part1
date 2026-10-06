@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "UbuntuCare",
+    "slug": "ubuntucare-ngo-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ubuntucare.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "UbuntuCare needs access to your photos so you can set a profile picture or campaign cover image.",
+        "NSCameraUsageDescription": "UbuntuCare needs camera access so you can take a profile picture or campaign photo.",
+        "NSLocationWhenInUseUsageDescription": "UbuntuCare needs your location to calculate directions and voice-guided navigation to a campaign."
+      }
+    },
+    "android": {
+      "package": "com.ubuntucare.app",
+      "permissions": [
+        "NOTIFICATIONS",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B7A3B"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "UbuntuCare needs access to your photos so you can set a profile picture or campaign cover image."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "UbuntuCare needs your location to calculate directions and voice-guided navigation to a campaign."
+        }
+      ],
+      "expo-sharing",
+      "expo-asset"
+    ]
+  }
+}

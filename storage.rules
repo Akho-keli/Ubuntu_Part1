@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function underSizeLimit() {
+      return request.resource.size < 5 * 1024 * 1024; // 5MB
+    }
+
+    // avatars/{uid}.jpg — only the owning user can upload their own avatar
+    match /avatars/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && isImage() && underSizeLimit() &&
+        fileName.matches(request.auth.uid + '.*');
+    }
+
+    // campaigns/{ngoUid}_{timestamp}.jpg — any signed-in NGO can upload
+    // campaign cover images (ownership of the campaign doc is enforced
+    // by Firestore rules, this just gates the raw file upload).
+    match /campaigns/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && isImage() && underSizeLimit();
+    }
+
+    // ngoLogos/{ngoUid}.jpg
+    match /ngoLogos/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && isImage() && underSizeLimit() &&
+        fileName.matches(request.auth.uid + '.*');
+    }
+
+    // Deny everything else by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

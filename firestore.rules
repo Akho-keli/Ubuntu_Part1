@@ -1,0 +1,125 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isNgoOwner(ngoId) {
+      return isSignedIn() && request.auth.uid == ngoId;
+    }
+
+    // ---------------- USERS (donors / recipients) ----------------
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(uid);
+      // Users can edit their own profile, but not their own `blocked` flag
+      // or `totalDonated` (those are only ever changed by the app's own
+      // trusted write paths / admin actions).
+      allow update: if isOwner(uid) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['blocked']) ||
+        isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------------- NGOs ----------------
+    match /ngos/{ngoId} {
+      allow read: if true; // public directory of NGOs
+      allow create: if isNgoOwner(ngoId);
+      allow update: if isNgoOwner(ngoId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verified']) ||
+        isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------------- CAMPAIGNS ----------------
+    match /campaigns/{campaignId} {
+      allow read: if true; // public
+      allow create: if isSignedIn() && request.resource.data.ngoId == request.auth.uid;
+      // NGO owner can edit their own campaign content, but only an admin
+      // can flip `status` (approve/reject) or `featured`.
+      allow update: if (isNgoOwner(resource.data.ngoId) &&
+                          !request.resource.data.diff(resource.data).affectedKeys()
+                            .hasAny(['status', 'featured', 'raisedAmount'])) ||
+                        isAdmin();
+      allow delete: if isNgoOwner(resource.data.ngoId) || isAdmin();
+    }
+
+    // ---------------- DONATIONS ----------------
+    match /donations/{donationId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid ||
+         isNgoOwner(resource.data.ngoId) ||
+         isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------- VOLUNTEERS ----------------
+    match /volunteers/{id} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isNgoOwner(resource.data.ngoId) || isAdmin());
+      allow update: if isNgoOwner(resource.data.ngoId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------------- EVENTS ----------------
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.ngoId == request.auth.uid;
+      allow update: if isNgoOwner(resource.data.ngoId) || isAdmin(); // RSVPs, edits
+      allow delete: if isNgoOwner(resource.data.ngoId) || isAdmin();
+    }
+
+    // ---------------- NOTIFICATIONS ----------------
+    match /notifications/{id} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || resource.data.userId == "broadcast");
+      allow create: if isSignedIn(); // any signed-in flow (system/NGO) can send
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid; // mark read
+      allow delete: if isAdmin();
+    }
+
+    // ---------------- ADMINS ----------------
+    match /admins/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      // Provision admin documents through the trusted Firebase Admin SDK only.
+      allow create, update, delete: if false;
+    }
+
+    // ---------------- REPORTS (moderation) ----------------
+    match /reports/{id} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------------- AUDIT LOGS (admin actions) ----------------
+    match /auditLogs/{id} {
+      allow create: if isAdmin();
+      allow read: if isAdmin();
+      allow update, delete: if false; // immutable trail
+    }
+
+    // ---------------- ACTIVITY LOGS (every account: login/logout/changes) ----------------
+    // Any signed-in account may append a log entry about itself (never about
+    // someone else), so logins/logouts/edits are captured in real time. Only
+    // admins can read the feed — this powers the Admin "Activity" tab.
+    match /activityLogs/{id} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isAdmin();
+      allow update, delete: if false; // immutable trail
+    }
+  }
+}
